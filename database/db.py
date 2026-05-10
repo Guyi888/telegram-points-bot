@@ -359,6 +359,31 @@ class Database:
             await db.execute("DELETE FROM custom_buttons WHERE id=?", (btn_id,))
             await db.commit()
 
+    # ── leaderboard ──────────────────────────────────────────────────────────
+
+    async def get_leaderboard(self, limit: int = 10) -> List[Dict]:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT user_id, first_name, last_name, username, points, checkin_count
+                   FROM users WHERE is_banned=0
+                   ORDER BY points DESC LIMIT ?""",
+                (limit,),
+            ) as c:
+                return [dict(r) for r in await c.fetchall()]
+
+    async def get_user_rank(self, user_id: int) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            async with db.execute(
+                """SELECT COUNT(*) FROM users
+                   WHERE is_banned=0 AND points > (
+                       SELECT points FROM users WHERE user_id=?
+                   )""",
+                (user_id,),
+            ) as c:
+                row = await c.fetchone()
+                return (row[0] + 1) if row else 0
+
     # ── stats ────────────────────────────────────────────────────────────────
 
     async def get_stats(self) -> Dict:

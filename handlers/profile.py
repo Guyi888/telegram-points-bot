@@ -85,6 +85,32 @@ def register(app: Client, db: Database):
     async def profile_cmd(client: Client, message: Message):
         await _show_profile(client, message)
 
+    # 积分排行榜
+    @app.on_message(filters.command("rank") | filters.regex(r"^积分排行$"))
+    async def rank_cmd(client: Client, message: Message):
+        top = await db.get_leaderboard(10)
+        if not top:
+            await message.reply("暂无排行数据。")
+            return
+
+        medals = ["🥇", "🥈", "🥉"]
+        lines = ["🏆 <b>积分排行榜 TOP 10</b>\n"]
+        for i, u in enumerate(top):
+            icon = medals[i] if i < 3 else f"{i+1}."
+            name = (u.get("first_name") or "") + (" " + u.get("last_name", "") if u.get("last_name") else "")
+            name = name.strip() or u.get("username") or f"用户{u['user_id']}"
+            lines.append(f"{icon} <a href='tg://user?id={u['user_id']}'>{name}</a>  <b>{u['points']}</b> 分")
+
+        # 附上发消息者的排名
+        if message.from_user:
+            rank = await db.get_user_rank(message.from_user.id)
+            db_user = await db.get_user(message.from_user.id)
+            if db_user:
+                lines.append(f"\n📍 你的排名：第 <b>{rank}</b> 名  {db_user['points']} 分")
+
+        await message.reply("\n".join(lines), parse_mode=ParseMode.HTML,
+                            disable_web_page_preview=True)
+
     # 群内查积分：/points
     @app.on_message(filters.command("points") | filters.regex(r"^我的积分$"))
     async def points_cmd(client: Client, message: Message):
