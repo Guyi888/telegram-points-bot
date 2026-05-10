@@ -63,8 +63,11 @@ async def check_membership(client: Client, db: Database, source) -> bool:
         )
         kb = join_channels_kb(missing, folder_link)
         if is_cb:
-            await source.answer("请先加入所有频道！", show_alert=True)
-            await source.message.reply(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+            try:
+                await source.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+            except Exception:
+                pass
+            await source.answer("❌ 请先加入所有频道！", show_alert=True)
         else:
             await source.reply(text, reply_markup=kb, parse_mode=ParseMode.HTML)
         return False

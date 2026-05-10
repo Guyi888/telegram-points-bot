@@ -102,8 +102,11 @@ def register(app: Client, db: Database):
         text = _NEED_JOIN.format(welcome_text=welcome_text)
         kb = join_channels_kb(channels, folder_link)
         if is_cb:
-            await source.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
-            await source.answer("请先加入所有频道！", show_alert=True)
+            try:
+                await source.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+            except Exception:
+                pass  # message not modified — ignore
+            await source.answer("❌ 请先加入所有频道！", show_alert=True)
         else:
             await source.reply(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
