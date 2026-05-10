@@ -5,6 +5,7 @@ from pyrogram.enums import ParseMode
 
 from database.db import Database
 from utils.keyboards import profile_kb, back_menu_kb
+from utils.membership import check_membership
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +89,10 @@ def register(app: Client, db: Database):
     # 邀请好友
     @app.on_message(filters.command("invite") | filters.regex(r"^邀请好友$"))
     async def invite_cmd(client: Client, message: Message):
+        if not await check_membership(client, db, message):
+            return
         user = message.from_user
         db_user = await db.get_user(user.id)
-        if not db_user:
-            await message.reply("请先私聊机器人发送 /start 注册。")
-            return
         bot_username = await db.get_setting("bot_username", "")
         invite_pts = await db.get_setting("invite_reward", "20")
         invite_count = await db.get_invite_count(user.id)
@@ -111,6 +111,8 @@ def register(app: Client, db: Database):
     # 积分排行榜
     @app.on_message(filters.command("rank") | filters.regex(r"^积分排行$"))
     async def rank_cmd(client: Client, message: Message):
+        if not await check_membership(client, db, message):
+            return
         top = await db.get_leaderboard(10)
         if not top:
             await message.reply("暂无排行数据。")
@@ -137,14 +139,10 @@ def register(app: Client, db: Database):
     # 群内查积分：/points
     @app.on_message(filters.command("points") | filters.regex(r"^我的积分$"))
     async def points_cmd(client: Client, message: Message):
+        if not await check_membership(client, db, message):
+            return
         user = message.from_user
         db_user = await db.get_user(user.id)
-        if not db_user:
-            await message.reply("请先私聊机器人发送 /start 注册。")
-            return
-        if db_user["is_banned"]:
-            await message.reply("⛔ 您已被封禁。")
-            return
         name = user.first_name or user.username or "用户"
         await message.reply(
             f"👤 <b>{name}</b>\n"

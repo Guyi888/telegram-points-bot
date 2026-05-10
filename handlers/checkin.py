@@ -7,6 +7,7 @@ from pyrogram.enums import ParseMode, ChatType
 
 from database.db import Database
 from utils.keyboards import back_menu_kb
+from utils.membership import check_membership
 
 logger = logging.getLogger(__name__)
 
@@ -18,24 +19,12 @@ def register(app: Client, db: Database):
         is_private = is_cb or (
             isinstance(source, Message) and source.chat.type == ChatType.PRIVATE
         )
+
+        if not await check_membership(client, db, source):
+            return
+
         user = source.from_user
-
         db_user = await db.get_user(user.id)
-        if not db_user:
-            msg = "请先私聊机器人发送 /start 注册后再签到。"
-            if is_cb:
-                await source.answer(msg, show_alert=True)
-            else:
-                await source.reply(msg)
-            return
-
-        if db_user["is_banned"]:
-            msg = "⛔ 您已被封禁，无法使用此功能。"
-            if is_cb:
-                await source.answer(msg, show_alert=True)
-            else:
-                await source.reply(msg)
-            return
 
         today = date.today().isoformat()
         custom_buttons = await db.get_custom_buttons()

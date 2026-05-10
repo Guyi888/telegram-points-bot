@@ -7,6 +7,7 @@ from database.db import Database
 from utils.keyboards import (
     shop_kb, product_kb, group_announce_kb, back_menu_kb
 )
+from utils.membership import check_membership
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +46,7 @@ def register(app: Client, db: Database):
 
     @app.on_message(filters.command("shop") | filters.regex(r"^兑换$"))
     async def shop_cmd(client: Client, message: Message):
-        db_user = await db.get_user(message.from_user.id)
-        if not db_user:
-            await message.reply("请先私聊机器人发送 /start 注册。")
-            return
-        if db_user["is_banned"]:
-            await message.reply("⛔ 您已被封禁，无法使用此功能。")
+        if not await check_membership(client, db, message):
             return
         await _show_shop(client, message)
 
