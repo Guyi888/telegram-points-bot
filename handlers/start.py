@@ -160,6 +160,13 @@ def register(app: Client, db: Database):
             if param.startswith("order_"):
                 await _deliver_key(client, message, param[6:], user.id)
                 return
+            # Still record inviter if not already set
+            if param.startswith("ref_"):
+                inviter_id_str = param[4:]
+                if inviter_id_str.isdigit():
+                    inviter_id = int(inviter_id_str)
+                    if inviter_id != user.id:
+                        await db.set_inviter(user.id, inviter_id)
             await _entry(client, message, user.id)
             return
 
