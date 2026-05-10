@@ -361,6 +361,15 @@ def register(app: Client, db: Database):
         await db.set_setting("folder_link", parts[1].strip())
         await message.reply("✅ 频道文件夹链接已设置")
 
+    @app.on_message(filters.command("setinvite") & filters.private & admin_only)
+    async def set_invite_reward(client: Client, message: Message):
+        parts = message.text.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            await message.reply("用法：/setinvite &lt;积分&gt;\n示例：/setinvite 20", parse_mode=ParseMode.HTML)
+            return
+        await db.set_setting("invite_reward", parts[1])
+        await message.reply(f"✅ 邀请奖励已设置为 <b>{parts[1]}</b> 积分", parse_mode=ParseMode.HTML)
+
     @app.on_message(filters.command("setwelcome") & filters.private & admin_only)
     async def set_welcome(client: Client, message: Message):
         parts = message.text.split(maxsplit=1)
