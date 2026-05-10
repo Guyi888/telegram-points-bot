@@ -6,16 +6,18 @@ from config import DATABASE_URL
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id     INTEGER UNIQUE NOT NULL,
-    username    TEXT,
-    first_name  TEXT,
-    last_name   TEXT,
-    points      INTEGER DEFAULT 0,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER UNIQUE NOT NULL,
+    username      TEXT,
+    first_name    TEXT,
+    last_name     TEXT,
+    points        INTEGER DEFAULT 0,
     checkin_count INTEGER DEFAULT 0,
     last_checkin  TEXT,
-    is_banned   INTEGER DEFAULT 0,
-    joined_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_banned     INTEGER DEFAULT 0,
+    invited_by    INTEGER DEFAULT NULL,
+    invite_rewarded INTEGER DEFAULT 0,
+    joined_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS channels (
@@ -77,6 +79,7 @@ _DEFAULT_SETTINGS = [
     ("group_id",      "0"),
     ("folder_link",   ""),
     ("bot_username",  ""),
+    ("invite_reward", "20"),
 ]
 
 
@@ -89,6 +92,15 @@ class Database:
     async def init(self):
         async with aiosqlite.connect(self.path) as db:
             await db.executescript(_SCHEMA)
+            # migrations for existing databases
+            for col, definition in [
+                ("invited_by",       "INTEGER DEFAULT NULL"),
+                ("invite_rewarded",  "INTEGER DEFAULT 0"),
+            ]:
+                try:
+                    await db.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
+                except Exception:
+                    pass  # column already exists
             for k, v in _DEFAULT_SETTINGS:
                 await db.execute(
                     "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v)
@@ -383,6 +395,50 @@ class Database:
             ) as c:
                 row = await c.fetchone()
                 return (row[0] + 1) if row else 0
+
+    # ── invite ───────────────────────────────────────────────────────────────
+
+    async def set_inviter(self, user_id: int, inviter_id: int):
+        """Record who invited this user (only if not already set)."""
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                "UPDATE users SET invited_by=? WHERE user_id=? AND invited_by IS NULL",
+                (inviter_id, user_id),
+            )
+            await db.commit()
+
+    async def try_give_invite_reward(self, user_id: int) -> Optional[int]:
+        """Call after user's first checkin. Returns inviter_id if reward was given."""
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT invited_by, invite_rewarded FROM users WHERE user_id=?",
+                (user_id,),
+            ) as c:
+                row = await c.fetchone()
+            if not row or not row["invited_by"] or row["invite_rewarded"]:
+                return None
+            inviter_id = row["invited_by"]
+            reward = int(await self.get_setting("invite_reward", "20"))
+            await db.execute(
+                "UPDATE users SET points=points+? WHERE user_id=?",
+                (reward, inviter_id),
+            )
+            await db.execute(
+                "UPDATE users SET invite_rewarded=1 WHERE user_id=?",
+                (user_id,),
+            )
+            await db.commit()
+            return inviter_id
+
+    async def get_invite_count(self, user_id: int) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            async with db.execute(
+                "SELECT COUNT(*) FROM users WHERE invited_by=? AND invite_rewarded=1",
+                (user_id,),
+            ) as c:
+                row = await c.fetchone()
+                return row[0] if row else 0
 
     # ── stats ────────────────────────────────────────────────────────────────
 

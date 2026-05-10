@@ -116,12 +116,19 @@ def register(app: Client, db: Database):
             user.last_name or "",
         )
 
-        # Deep-link: /start order_<order_id>
+        # Deep-link handling
         parts = message.text.split(maxsplit=1)
-        if len(parts) > 1 and parts[1].startswith("order_"):
-            order_id = parts[1][6:]
-            await _deliver_key(client, message, order_id, user.id)
-            return
+        if len(parts) > 1:
+            param = parts[1]
+            if param.startswith("order_"):
+                await _deliver_key(client, message, param[6:], user.id)
+                return
+            if param.startswith("ref_"):
+                inviter_id_str = param[4:]
+                if inviter_id_str.isdigit():
+                    inviter_id = int(inviter_id_str)
+                    if inviter_id != user.id:
+                        await db.set_inviter(user.id, inviter_id)
 
         await _entry(client, message, user.id)
 

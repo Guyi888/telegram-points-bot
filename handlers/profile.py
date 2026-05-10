@@ -85,6 +85,29 @@ def register(app: Client, db: Database):
     async def profile_cmd(client: Client, message: Message):
         await _show_profile(client, message)
 
+    # 邀请好友
+    @app.on_message(filters.command("invite") | filters.regex(r"^邀请好友$"))
+    async def invite_cmd(client: Client, message: Message):
+        user = message.from_user
+        db_user = await db.get_user(user.id)
+        if not db_user:
+            await message.reply("请先私聊机器人发送 /start 注册。")
+            return
+        bot_username = await db.get_setting("bot_username", "")
+        invite_pts = await db.get_setting("invite_reward", "20")
+        invite_count = await db.get_invite_count(user.id)
+        link = f"https://t.me/{bot_username}?start=ref_{user.id}"
+        await message.reply(
+            f"👥 <b>邀请好友</b>\n\n"
+            f"每成功邀请一位好友（对方需完成首次签到）\n"
+            f"即可获得 <b>{invite_pts}</b> 积分奖励！\n\n"
+            f"🔗 你的专属邀请链接：\n"
+            f"<code>{link}</code>\n\n"
+            f"📊 已成功邀请：<b>{invite_count}</b> 人",
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
+
     # 积分排行榜
     @app.on_message(filters.command("rank") | filters.regex(r"^积分排行$"))
     async def rank_cmd(client: Client, message: Message):

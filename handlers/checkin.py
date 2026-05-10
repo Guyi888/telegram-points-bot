@@ -68,6 +68,24 @@ def register(app: Client, db: Database):
                 await source.reply(msg)
             return
 
+        # 首次签到 → 触发邀请奖励
+        if db_user.get("checkin_count", 0) == 0:
+            inviter_id = await db.try_give_invite_reward(user.id)
+            if inviter_id:
+                invite_pts = int(await db.get_setting("invite_reward", "20"))
+                try:
+                    await client.send_message(
+                        inviter_id,
+                        f"🎉 您邀请的好友 "
+                        f"<a href='tg://user?id={user.id}'>"
+                        f"{user.first_name or '新用户'}</a> "
+                        f"已完成首次签到！\n"
+                        f"💰 奖励积分：<b>+{invite_pts}</b>",
+                        parse_mode=ParseMode.HTML,
+                    )
+                except Exception:
+                    pass
+
         db_user = await db.get_user(user.id)
         text = (
             f"✅ <b>签到成功！</b>\n\n"
