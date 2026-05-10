@@ -48,10 +48,10 @@ async def check_membership(client: Client, db: Database, source) -> bool:
                 missing.append(ch)
         except UserNotParticipant:
             missing.append(ch)
-        except (PeerIdInvalid, ChatAdminRequired) as e:
-            logger.warning("Cannot check channel %s: %s", ch["channel_id"], e)
         except Exception as e:
-            logger.error("Unexpected error for channel %s: %s", ch["channel_id"], e)
+            # 无法检查时保守处理：视为未加入
+            logger.warning("Cannot check channel %s: %s — treating as not joined", ch["channel_id"], e)
+            missing.append(ch)
 
     if missing:
         names = "、".join(ch["channel_name"] for ch in missing)

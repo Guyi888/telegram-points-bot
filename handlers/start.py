@@ -78,10 +78,9 @@ def register(app: Client, db: Database):
                     missing.append(ch)
             except UserNotParticipant:
                 missing.append(ch)
-            except (PeerIdInvalid, ChatAdminRequired) as e:
-                logger.warning("Cannot check channel %s: %s", ch["channel_id"], e)
             except Exception as e:
-                logger.error("Unexpected error for channel %s: %s", ch["channel_id"], e)
+                logger.warning("Cannot check channel %s: %s — treating as not joined", ch["channel_id"], e)
+                missing.append(ch)
         return missing
 
     async def _show_main_menu(client, source, db_user):
