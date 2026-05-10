@@ -223,11 +223,57 @@ def register(app: Client, db: Database):
         await query.answer("✅ 验证通过！", show_alert=False)
         await query.message.delete()
 
-        # Continue normal flow
+        # Send fresh message — cannot edit deleted captcha message
         if param.startswith("order_"):
-            await _deliver_key(client, query.message, param[6:], user.id)
+            await _deliver_key_new(client, user.id, param[6:])
             return
-        await _entry(client, query, user.id)
+        await _entry_new(client, user.id)
+
+    # ── post-captcha: send brand-new messages ────────────────────────────────
+
+    async def _entry_new(client: Client, user_id: int):
+        """Used after captcha: send main menu or join prompt as a new message."""
+        db_user = await db.get_user(user_id)
+        if not db_user:
+            return
+        channels = await db.get_channels()
+        missing = await _check_channels(client, user_id, channels) if channels else []
+        if missing:
+            welcome_text = await db.get_setting("welcome_text", "请加入以下所有频道后继续使用。")
+            folder_link = await db.get_setting("folder_link", "")
+            text = _NEED_JOIN.format(welcome_text=welcome_text)
+            kb = join_channels_kb(missing, folder_link)
+        else:
+            db_user = await db.get_user(user_id)
+            custom_buttons = await db.get_custom_buttons()
+            name = db_user.get("first_name") or "用户"
+            text = _MAIN_MENU.format(name=name, points=db_user["points"])
+            kb = main_menu_kb(custom_buttons)
+        await client.send_message(user_id, text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+    async def _deliver_key_new(client: Client, user_id: int, order_id: str):
+        """Used after captcha: deliver key via new message."""
+        order = await db.get_order(order_id)
+        if not order:
+            await client.send_message(user_id, "❌ 订单不存在或已失效。")
+            return
+        if order["user_id"] != user_id:
+            await client.send_message(user_id, "❌ 此链接不属于您的订单，无法领取。")
+            return
+        custom_buttons = await db.get_custom_buttons()
+        await client.send_message(
+            user_id,
+            f"🎉 <b>卡密领取成功！</b>\n\n"
+            f"📦 商品：<b>{order['product_name']}</b>\n"
+            f"🕐 兑换时间：{str(order['created_at'])[:16]}\n\n"
+            f"🔑 您的卡密：\n"
+            f"<code>{order['key_value']}</code>\n\n"
+            f"请妥善保管，切勿泄露。",
+            reply_markup=back_menu_kb(custom_buttons),
+            parse_mode=ParseMode.HTML,
+        )
+        if order["status"] == "pending":
+            await db.complete_order(order_id)
 
     # ── key delivery ──────────────────────────────────────────────────────────
 
